@@ -133,7 +133,7 @@ services:
       - SENEC_HOST
       - SENEC_INTERVAL
       - INFLUX_HOST=influx
-      - INFLUX_TOKEN
+      - INFLUX_TOKEN=${INFLUX_TOKEN_WRITE}
       - INFLUX_ORG
       - INFLUX_BUCKET
     command: bundle exec src/main.rb
