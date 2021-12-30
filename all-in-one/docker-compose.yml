@@ -112,9 +112,9 @@ services:
       - INFLUX_TOKEN=${INFLUX_TOKEN_READ}
       - INFLUX_ORG
       - INFLUX_BUCKET
-   healthcheck:
-     test: ["CMD-SHELL", "nc -z 127.0.0.1 3000 || exit 1"]
-   restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3000 || exit 1"]
+    restart: always
 
   senec-collector:
     image: ghcr.io/solectrus/senec-collector:latest
