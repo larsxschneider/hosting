@@ -123,6 +123,8 @@ services:
 
   senec-collector:
     image: ghcr.io/solectrus/senec-collector:latest
+    networks:
+      - internal
     depends_on:
       - influx
     links:
@@ -136,7 +138,6 @@ services:
       - INFLUX_BUCKET
     command: bundle exec src/main.rb
     privileged: true
-    network_mode: host
     restart: always
 
 networks:
