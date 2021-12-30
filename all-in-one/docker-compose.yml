@@ -1,0 +1,138 @@
+version: "3.7"
+
+services:
+  influx:
+    image: influxdb:2.0
+    environment:
+      - INFLUXDB_ADMIN_USER=${INFLUXDB_ADMIN_USER}
+      - INFLUXDB_ADMIN_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - INFLUXDB_DB=senec
+    volumes:
+      - ${INFLUX_VOLUME_PATH}:/var/lib/influxdb
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+    restart: always
+
+  # Required to setup influx db
+  influxdb_cli:
+    links:
+      - influx
+    image: influxdb:2.0
+    volumes:
+      - ${INFLUX_VOLUME_PATH}:/var/lib/influxdb
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_ADMIN_USER}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUX_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUX_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_ADMIN_TOKEN}
+    entrypoint: ["./entrypoint.sh"]
+    restart: on-failure:10
+    depends_on:
+      - influx
+
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+    volumes:
+      - ${DB_VOLUME_PATH}:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+    volumes:
+      - ${REDIS_VOLUME_PATH}:/data
+    restart: always
+
+  forecast-collector:
+    image: ghcr.io/solectrus/forecast-collector:latest
+    networks:
+      - internal
+    depends_on:
+      - influx
+    links:
+      - influx
+    environment:
+      - INFLUX_HOST=influx
+      - INFLUX_TOKEN=${INFLUX_TOKEN_WRITE}
+      - INFLUX_ORG
+      - INFLUX_BUCKET
+      - FORECAST_LATITUDE
+      - FORECAST_LONGITUDE
+      - FORECAST_DECLINATION
+      - FORECAST_AZIMUTH=20
+      - FORECAST_KWP
+      - FORECAST_INTERVAL
+    command: bundle exec src/main.rb
+    restart: always
+
+  app:
+    image: ghcr.io/solectrus/solectrus:latest
+    networks:
+      - internal
+    depends_on:
+      - db
+      - influx
+      - redis
+    links:
+      - db
+      - influx
+      - redis
+    ports:
+      - 80:3000
+    environment:
+      - APP_HOST
+      - FORCE_SSL
+      - SECRET_KEY_BASE
+      - HONEYBADGER_API_KEY
+      - PLAUSIBLE_URL
+      - INSTALLATION_DATE
+      - ELECTRICITY_PRICE
+      - FEED_IN_TARIFF
+      - DB_HOST=db
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_USER=postgres
+      - REDIS_URL=redis://redis:6379/1
+      - INFLUX_HOST=influx
+      - INFLUX_TOKEN=${INFLUX_TOKEN_READ}
+      - INFLUX_ORG
+      - INFLUX_BUCKET
+   healthcheck:
+     test: ["CMD-SHELL", "nc -z 127.0.0.1 3000 || exit 1"]
+   restart: always
+
+  senec-collector:
+    image: ghcr.io/solectrus/senec-collector:latest
+    environment:
+      - SENEC_HOST
+      - SENEC_INTERVAL
+      - INFLUX_HOST
+      - INFLUX_SCHEMA
+      - INFLUX_PORT
+      - INFLUX_TOKEN
+      - INFLUX_ORG
+      - INFLUX_BUCKET
+    command: bundle exec src/main.rb
+    privileged: true
+    network_mode: host
+    restart: always
+
+networks:
+  internal:
+    driver_opts:
+      encrypted: ""
