@@ -123,12 +123,14 @@ services:
 
   senec-collector:
     image: ghcr.io/solectrus/senec-collector:latest
+    depends_on:
+      - influx
+    links:
+      - influx
     environment:
       - SENEC_HOST
       - SENEC_INTERVAL
-      - INFLUX_HOST
-      - INFLUX_SCHEMA
-      - INFLUX_PORT
+      - INFLUX_HOST=influx
       - INFLUX_TOKEN
       - INFLUX_ORG
       - INFLUX_BUCKET
